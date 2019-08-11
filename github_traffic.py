@@ -213,8 +213,43 @@ def breakdown(ctx, metrics, output_format, table_days_visible):
 
 
 @cli.command()
-def referrers():
-    pass
+@click.option(
+    "--output-format",
+    default="table",
+    type=click.Choice(["table", "json"])
+)
+@click.pass_context
+def referrers(ctx, output_format):
+    repos = ctx.obj.get("repos")
+
+    referrers = [
+        {
+            "repo": repo.name,
+            "referrer": r.referrer,
+            "count": r.count,
+            "uniques": r.uniques
+        } for repo in repos for r in repo.get_top_referrers()
+
+    ]
+    referrers = sorted(referrers, key=lambda x: (x["uniques"], x["count"]))
+
+    if output_format == "json":
+        click.echo(json.dumps(referrers, indent=4, sort_keys=True))
+    elif output_format == "table":
+        labels = [["Repo", "Referrer", "Uniques", "Count"]]
+
+        rows = []
+        for ref in referrers:
+            rows.append([
+                ref["repo"], ref["referrer"], ref["uniques"], ref["count"]
+            ])
+
+        table_rows = labels + rows + labels
+
+        table = AsciiTable(table_rows)
+        table.inner_footing_row_border = True
+
+        click.secho(table.table)
 
 
 @cli.command()
