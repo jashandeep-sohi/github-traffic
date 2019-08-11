@@ -246,7 +246,7 @@ def referrers(ctx, output_format):
 
         table_rows = labels + rows + labels
 
-        table = AsciiTable(table_rows)
+        table = AsciiTable(table_rows, "Referrers")
         table.inner_footing_row_border = True
 
         click.secho(table.table)
@@ -287,7 +287,7 @@ def paths(ctx, output_format):
 
         table_rows = labels + rows + labels
 
-        table = AsciiTable(table_rows)
+        table = AsciiTable(table_rows, "Paths")
         table.inner_footing_row_border = True
 
         click.secho(table.table)
