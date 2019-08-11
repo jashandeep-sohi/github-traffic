@@ -253,5 +253,41 @@ def referrers(ctx, output_format):
 
 
 @cli.command()
-def paths():
-    pass
+@click.option(
+    "--output-format",
+    default="table",
+    type=click.Choice(["table", "json"])
+)
+@click.pass_context
+def paths(ctx, output_format):
+    repos = ctx.obj.get("repos")
+
+    paths = [
+        {
+            "repo": repo.name,
+            "path": p.path,
+            "title": p.title,
+            "count": p.count,
+            "uniques": p.uniques
+        } for repo in repos for p in repo.get_top_paths()
+
+    ]
+    paths = sorted(paths, key=lambda x: (x["uniques"], x["count"]))
+
+    if output_format == "json":
+        click.echo(json.dumps(paths, indent=4, sort_keys=True))
+    elif output_format == "table":
+        labels = [["Repo", "Path", "Uniques", "Count"]]
+
+        rows = []
+        for path in paths:
+            rows.append([
+                path["repo"], path["path"], path["uniques"], path["count"]
+            ])
+
+        table_rows = labels + rows + labels
+
+        table = AsciiTable(table_rows)
+        table.inner_footing_row_border = True
+
+        click.secho(table.table)
