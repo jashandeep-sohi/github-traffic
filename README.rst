@@ -15,7 +15,7 @@ Install
 
 To install the latest development version::
 
-  $ pip install git+https://github.com/jashandeep-sohi/github-traffic.git
+  $ pip install --user git+https://github.com/jashandeep-sohi/github-traffic.git
 
 Usage
 -----
