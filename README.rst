@@ -20,15 +20,15 @@ To install the latest development version::
 Usage
 -----
 
-Views & clones breakdown::
+Views & clones summary::
 
-  $ github-traffic --token "$GITHUB_TOKEN" breakdown
+  $ github-traffic --token "$GITHUB_TOKEN" summary
 
-Views breakdown::
+Views summary::
 
   $ github-traffic --token "$GITHUB_TOKEN" breakdown --metrics views
 
-Clones breakdown::
+Clones summary::
 
   $ github-traffic --token "$GITHUB_TOKEN" breakdown --metrics clones
 

@@ -95,71 +95,75 @@ def get_repos_zero_traffic(repos, breakdown_dates):
         }
 
 
-def build_traffic_table(views, clones, dates, table_days_visible, metrics):
-    dates_visible = dates[:table_days_visible]
+def build_summary_table(dates, repos_views, repos_clones, show_views,
+                        show_clones):
+    labels = [["Name", "All"] + [d.strftime("%m/%d\n%a") for d in dates]]
 
-    def f(x):
-        return [
-            (b["count"], a["count"])
-            for (a, b) in zip(x[0]["breakdown"], x[1]["breakdown"])
-        ]
+    data_rows = [
+        [
+            repo_views["name"],
+            {
+                "views": {
+                    "uniques": repo_views["uniques"],
+                    "count": repo_views["count"]
+                },
+                "clones": {
+                    "uniques": repo_clones["uniques"],
+                    "count": repo_clones["count"]
+                }
+            }
+        ] + [
+            {
+                "views": {
+                    "uniques": views_breakdown["uniques"],
+                    "count": views_breakdown["count"]
+                },
+                "clones": {
+                    "uniques": clones_breakdown["uniques"],
+                    "count": clones_breakdown["count"]
+                }
+            } for views_breakdown, clones_breakdown in zip(
+                repo_views["breakdown"],
+                repo_clones["breakdown"]
+            )
+        ] for (repo_views, repo_clones) in zip(repos_views, repos_clones)
+    ]
 
-    sorted_views_clones = sorted(
-        zip(views, clones),
-        key=f
-    )
+    def sort_key(r):
+        return [(c["clones"]["count"], c["views"]["count"]) for c in r[2:]]
 
-    rows = []
-    for view, clone in sorted_views_clones:
-        if view["count"] == 0 and clone["count"] == 0:
-            continue
+    def filter_func(r):
+        return bool(r[1]["views"]["count"] + r[1]["clones"]["count"])
 
-        all_col_lines = []
+    def fmt_cell(c):
+        if not (c["views"]["count"] + c["clones"]["count"]):
+            return ""
 
         line_str = "{uniques}/{count}"
+        lines = []
 
-        if "views" in metrics:
-            all_col_lines.append(line_str.format(**view))
+        if show_views:
+            lines.append(line_str.format(**c["views"]))
 
-        if "clones" in metrics:
-            all_col_lines.append(line_str.format(**clone))
+        if show_clones:
+            lines.append(line_str.format(**c["clones"]))
 
-        all_col = "\n".join(all_col_lines)
+        return "\n".join(lines)
 
-        breakdown_cols = []
-        view_clone_breakdown = zip(
-            view["breakdown"],
-            clone["breakdown"],
-            dates_visible
-        )
-        for view_breakdown, clone_breakdown, _ in view_clone_breakdown:
-            if view_breakdown["count"] + clone_breakdown["count"] > 0:
-                breadown_col_lines = []
+    data_rows = sorted(
+        data_rows,
+        key=sort_key
+    )
 
-                if "views" in metrics:
-                    breadown_col_lines.append(
-                        line_str.format(**view_breakdown)
-                    )
+    data_rows = filter(filter_func, data_rows)
 
-                if "clones" in metrics:
-                    breadown_col_lines.append(
-                        line_str.format(**clone_breakdown)
-                    )
+    data_rows = [[r[0]] + list(map(fmt_cell, r[1:])) for r in data_rows]
 
-                breakdown_cols.append("\n".join(breadown_col_lines))
-            else:
-                breakdown_cols.append("")
-
-        rows.append([view["name"], all_col] + breakdown_cols)
-
-    labels = [["Name", "All"] + [
-        d.strftime("%m/%d\n%a") for d in dates_visible]
-    ]
-    table_data = labels + rows + labels
-    table = AsciiTable(table_data)
+    table_rows = labels + data_rows + labels
+    table = AsciiTable(table_rows, "Summary")
     table.inner_row_border = True
     table.justify_columns = {
-        i: "center" for i in range(1, len(dates_visible) + 2)
+        i: "center" for i in range(1, len(dates) + 2)
     }
 
     return table.table
@@ -167,47 +171,71 @@ def build_traffic_table(views, clones, dates, table_days_visible, metrics):
 
 @cli.command()
 @click.option(
+    "--output-format",
+    default="table",
+    type=click.Choice(["table", "json"])
+)
+@click.option(
     "--metrics",
     default=["views", "clones"],
     type=click.Choice(["views", "clones"]),
     multiple=True
 )
-@click.option(
-    "--output-format",
-    default="table",
-    type=click.Choice(["table", "json"])
-)
-@click.option("--table-days-visible", default=15, type=click.IntRange(1, 15))
+@click.option("--days", default=15, type=click.IntRange(0, 15))
 @click.pass_context
-def breakdown(ctx, metrics, output_format, table_days_visible):
+def summary(ctx, output_format, metrics, days):
     repos = ctx.obj.get("repos")
+
     metrics = set(metrics)
+
+    show_views = "views" in metrics
+    show_clones = "clones" in metrics
 
     today = datetime.datetime.utcnow().date()
 
     dates = list(reversed(list(
-        date_days_range(today - datetime.timedelta(days=14), today)
+        date_days_range(today - datetime.timedelta(days=days-1), today)
     )))
 
-    if "views" in metrics:
-        views = list(get_repos_views_traffic(repos, dates))
-    else:
-        views = list(get_repos_zero_traffic(repos, dates))
+    fake_traffic = list(get_repos_zero_traffic(repos, dates))
 
-    if "clones" in metrics:
-        clones = list(get_repos_clones_traffic(repos, dates))
+    if show_views:
+        p = progressbar(
+            repos,
+            show_eta=False,
+            label="Fetching views stats",
+            item_show_func=lambda r: r and r.name
+        )
+        with p:
+            repos_views = list(get_repos_views_traffic(p, dates))
     else:
-        clones = list(get_repos_zero_traffic(repos, dates))
+        repos_views = fake_traffic
+
+    if show_clones:
+        p = progressbar(
+            repos,
+            show_eta=False,
+            label="Fetching clones stats",
+            item_show_func=lambda r: r and r.name
+        )
+        with p:
+            repos_clones = list(get_repos_clones_traffic(p, dates))
+    else:
+        repos_clones = fake_traffic
 
     if output_format == "json":
         out = {
-            "views": views if "views" in metrics else None,
-            "clones": clones if "clones" in metrics else None
+            "views":  repos_views if show_views else None,
+            "clones": repos_clones if show_clones else None
         }
         click.echo(json.dumps(out, default=str, indent=4, sort_keys=True))
     elif output_format == "table":
-        table = build_traffic_table(
-            views, clones, dates, table_days_visible, metrics
+        table = build_summary_table(
+            dates,
+            repos_views,
+            repos_clones,
+            show_views,
+            show_clones
         )
         click.secho(table)
 
@@ -291,3 +319,9 @@ def paths(ctx, output_format):
         table.inner_footing_row_border = True
 
         click.secho(table.table)
+
+
+def progressbar(*args, **kwargs):
+    stderr_fobj = click.get_text_stream("stderr")
+
+    return click.progressbar(*args, file=stderr_fobj, **kwargs)
