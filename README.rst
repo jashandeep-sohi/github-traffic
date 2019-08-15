@@ -26,11 +26,11 @@ Views & clones summary::
 
 Views summary::
 
-  $ github-traffic --token "$GITHUB_TOKEN" breakdown --metrics views
+  $ github-traffic --token "$GITHUB_TOKEN" summary --metrics views
 
 Clones summary::
 
-  $ github-traffic --token "$GITHUB_TOKEN" breakdown --metrics clones
+  $ github-traffic --token "$GITHUB_TOKEN" summary --metrics clones
 
 Top referrers::
 
