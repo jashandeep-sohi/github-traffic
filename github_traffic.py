@@ -250,15 +250,22 @@ def summary(ctx, output_format, metrics, days):
 def referrers(ctx, output_format):
     repos = ctx.obj.get("repos")
 
-    referrers = [
-        {
-            "repo": repo.name,
-            "referrer": r.referrer,
-            "count": r.count,
-            "uniques": r.uniques
-        } for repo in repos for r in repo.get_top_referrers()
+    prog = progressbar(
+        repos,
+        show_eta=False,
+        label="Fetching referrers stats",
+        item_show_func=lambda r: r and r.name
+    )
+    with prog:
+        referrers = [
+            {
+                "repo": repo.name,
+                "referrer": r.referrer,
+                "count": r.count,
+                "uniques": r.uniques
+            } for repo in prog for r in repo.get_top_referrers()
 
-    ]
+        ]
     referrers = sorted(referrers, key=lambda x: (x["uniques"], x["count"]))
 
     if output_format == "json":
@@ -290,16 +297,23 @@ def referrers(ctx, output_format):
 def paths(ctx, output_format):
     repos = ctx.obj.get("repos")
 
-    paths = [
-        {
-            "repo": repo.name,
-            "path": p.path,
-            "title": p.title,
-            "count": p.count,
-            "uniques": p.uniques
-        } for repo in repos for p in repo.get_top_paths()
+    prog = progressbar(
+        repos,
+        show_eta=False,
+        label="Fetching paths stats",
+        item_show_func=lambda r: r and r.name
+    )
+    with prog:
+        paths = [
+            {
+                "repo": repo.name,
+                "path": p.path,
+                "title": p.title,
+                "count": p.count,
+                "uniques": p.uniques
+            } for repo in prog for p in repo.get_top_paths()
 
-    ]
+        ]
     paths = sorted(paths, key=lambda x: (x["uniques"], x["count"]))
 
     if output_format == "json":
