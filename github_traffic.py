@@ -14,8 +14,12 @@ logger = logging.getLogger(__name__)
 @click.option("--token", default=None)
 @click.option("--user", default=None)
 @click.option("--password", default=None)
+@click.option("--ignore",
+  default="",
+  help="comma seperated list of repos to ignore"
+)
 @click.pass_context
-def cli(ctx, token, user, password):
+def cli(ctx, token, user, password, ignore):
     ctx.ensure_object(dict)
 
     if token:
@@ -25,8 +29,12 @@ def cli(ctx, token, user, password):
 
     repos = github.get_user().get_repos()
 
+    ignore_repos = {x.strip() for x in ignore.split(",")}
+
     ctx.obj["github"] = github
-    ctx.obj["repos"] = list(filter_traffic_visible(repos))
+    ctx.obj["repos"] = list(
+      x for x in filter_traffic_visible(repos) if x.name not in ignore_repos
+    )
 
 
 def filter_traffic_visible(repos):
