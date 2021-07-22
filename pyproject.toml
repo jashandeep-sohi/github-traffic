@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "github-traffic"
+version = "0.1.0"
+description = "Summarize Github traffic stats across repositories."
+authors = ["Jashandeep Sohi <jashandeep.s.sohi@gmail.com>"]
+license = "GPLv3"
+
+[tool.poetry.dependencies]
+python = "^3.9"
+PyGithub = ">=1.43.8"
+click = ">=7"
+terminaltables = "^3.1.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+github-traffic = "github_traffic:cli"
