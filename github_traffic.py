@@ -22,9 +22,16 @@ logger = logging.getLogger(__name__)
   default="",
   help="comma seperated list of repos to exclusively include"
 )
+@click.option(
+    "--output-format",
+    default="table",
+    type=click.Choice(["table", "json"])
+)
 @click.pass_context
-def cli(ctx, token, user, password, ignore, include):
+def cli(ctx, token, user, password, ignore, include, output_format):
     ctx.ensure_object(dict)
+
+    ctx.obj["output_format"] = output_format
 
     if token:
         github = Github(token)
@@ -51,11 +58,6 @@ def cli(ctx, token, user, password, ignore, include):
 
 @cli.command()
 @click.option(
-    "--output-format",
-    default="table",
-    type=click.Choice(["table", "json"])
-)
-@click.option(
     "--metrics",
     default=["views", "clones"],
     type=click.Choice(["views", "clones"]),
@@ -63,8 +65,9 @@ def cli(ctx, token, user, password, ignore, include):
 )
 @click.option("--days", default=15, type=click.IntRange(0, 15))
 @click.pass_context
-def summary(ctx, output_format, metrics, days):
+def summary(ctx, metrics, days):
     repos = ctx.obj.get("repos")
+    output_format = ctx.obj.get("output_format")
 
     metrics = set(metrics)
 
@@ -121,14 +124,10 @@ def summary(ctx, output_format, metrics, days):
 
 
 @cli.command()
-@click.option(
-    "--output-format",
-    default="table",
-    type=click.Choice(["table", "json"])
-)
 @click.pass_context
-def referrers(ctx, output_format):
+def referrers(ctx):
     repos = ctx.obj.get("repos")
+    output_format = ctx.obj.get("output_format")
 
     prog = progressbar(
         repos,
@@ -168,14 +167,10 @@ def referrers(ctx, output_format):
 
 
 @cli.command()
-@click.option(
-    "--output-format",
-    default="table",
-    type=click.Choice(["table", "json"])
-)
 @click.pass_context
-def paths(ctx, output_format):
+def paths(ctx):
     repos = ctx.obj.get("repos")
+    output_format = ctx.obj.get("output_format")
 
     prog = progressbar(
         repos,
