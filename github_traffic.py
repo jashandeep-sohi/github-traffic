@@ -5,12 +5,13 @@ import json
 
 from github import Github
 from terminaltables import AsciiTable
+from click_aliases import ClickAliasedGroup
 
 
 logger = logging.getLogger(__name__)
 
 
-@click.group()
+@click.group(cls=ClickAliasedGroup)
 @click.option("--token", default=None)
 @click.option("--user", default=None)
 @click.option("--password", default=None)
@@ -123,7 +124,7 @@ def summary(ctx, metrics, days):
         click.secho(table)
 
 
-@cli.command()
+@cli.command(aliases=["refs", "hosts"])
 @click.pass_context
 def referrers(ctx):
     repos = ctx.obj.get("repos")
