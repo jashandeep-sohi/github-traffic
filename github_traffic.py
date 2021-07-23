@@ -28,11 +28,17 @@ logger = logging.getLogger(__name__)
     default="table",
     type=click.Choice(["table", "json"])
 )
+@click.option(
+    "--order",
+    default="asc",
+    type=click.Choice(["desc", "asc"])
+)
 @click.pass_context
-def cli(ctx, token, user, password, ignore, include, output_format):
+def cli(ctx, token, user, password, ignore, include, output_format, order):
     ctx.ensure_object(dict)
 
     ctx.obj["output_format"] = output_format
+    ctx.obj["order"] = order
 
     if token:
         github = Github(token)
@@ -69,6 +75,7 @@ def cli(ctx, token, user, password, ignore, include, output_format):
 def summary(ctx, metrics, days):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
+    order = ctx.obj.get("order")
 
     metrics = set(metrics)
 
@@ -119,7 +126,8 @@ def summary(ctx, metrics, days):
             repos_views,
             repos_clones,
             show_views,
-            show_clones
+            show_clones,
+            True if order == "desc" else False
         )
         click.secho(table)
 
@@ -129,6 +137,7 @@ def summary(ctx, metrics, days):
 def referrers(ctx):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
+    order = ctx.obj.get("order")
 
     prog = progressbar(
         repos,
@@ -146,7 +155,11 @@ def referrers(ctx):
             } for repo in prog for r in repo.get_top_referrers()
 
         ]
-    referrers = sorted(referrers, key=lambda x: (x["uniques"], x["count"]))
+    referrers = sorted(
+      referrers,
+      key=lambda x: (x["uniques"], x["count"]),
+      reverse= True if order == "desc" else False
+    )
 
     if output_format == "json":
         click.echo(json.dumps(referrers, indent=4, sort_keys=True))
@@ -172,6 +185,7 @@ def referrers(ctx):
 def paths(ctx):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
+    order = ctx.obj.get("order")
 
     prog = progressbar(
         repos,
@@ -190,7 +204,11 @@ def paths(ctx):
             } for repo in prog for p in repo.get_top_paths()
 
         ]
-    paths = sorted(paths, key=lambda x: (x["uniques"], x["count"]))
+    paths = sorted(
+      paths,
+      key=lambda x: (x["uniques"], x["count"]),
+      reverse= True if order == "desc" else False
+    )
 
     if output_format == "json":
         click.echo(json.dumps(paths, indent=4, sort_keys=True))
@@ -284,7 +302,7 @@ def get_repos_zero_traffic(repos, breakdown_dates):
 
 
 def build_summary_table(dates, repos_views, repos_clones, show_views,
-                        show_clones):
+                        show_clones, reverse):
     labels = [["Name", "All"] + [d.strftime("%m/%d\n%a") for d in dates]]
 
     data_rows = [
@@ -340,7 +358,8 @@ def build_summary_table(dates, repos_views, repos_clones, show_views,
 
     data_rows = sorted(
         data_rows,
-        key=sort_key
+        key=sort_key,
+        reverse=reverse
     )
 
     data_rows = filter(filter_func, data_rows)
