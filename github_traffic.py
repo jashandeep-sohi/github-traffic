@@ -49,146 +49,6 @@ def cli(ctx, token, user, password, ignore, include):
       )
 
 
-def filter_traffic_visible(repos):
-    for repo in repos:
-        if repo.permissions.push or repo.permissions.admin:
-            yield repo
-
-
-def date_days_range(start, end):
-    days = (end - start).days
-
-    for n in range(days + 1):
-        yield start + datetime.timedelta(days=n)
-
-
-def traffic_on_dates(traffic, dates):
-    traffic_by_date = {t.timestamp.date(): t for t in traffic}
-
-    for date in dates:
-        if date in traffic_by_date:
-            date_traffic = traffic_by_date[date]
-            yield {
-                "date": date,
-                "uniques": date_traffic.uniques,
-                "count": date_traffic.count
-            }
-        else:
-            yield {
-                "date": date,
-                "uniques": 0,
-                "count": 0
-            }
-
-
-def get_repos_views_traffic(repos, breakdown_dates):
-    for repo in repos:
-        traffic = repo.get_views_traffic()
-        breakdown = list(traffic_on_dates(traffic["views"], breakdown_dates))
-        yield {
-            "name": repo.name,
-            "uniques": traffic["uniques"],
-            "count": traffic["count"],
-            "breakdown": breakdown
-        }
-
-
-def get_repos_clones_traffic(repos, breakdown_dates):
-    for repo in repos:
-        traffic = repo.get_clones_traffic()
-        breakdown = list(traffic_on_dates(traffic["clones"], breakdown_dates))
-        yield {
-            "name": repo.name,
-            "uniques": traffic["uniques"],
-            "count": traffic["count"],
-            "breakdown": breakdown
-        }
-
-
-def get_repos_zero_traffic(repos, breakdown_dates):
-    for repo in repos:
-        yield {
-            "name": repo.name,
-            "uniques": 0,
-            "count": 0,
-            "breakdown": list(traffic_on_dates([], breakdown_dates))
-        }
-
-
-def build_summary_table(dates, repos_views, repos_clones, show_views,
-                        show_clones):
-    labels = [["Name", "All"] + [d.strftime("%m/%d\n%a") for d in dates]]
-
-    data_rows = [
-        [
-            repo_views["name"],
-            {
-                "views": {
-                    "uniques": repo_views["uniques"],
-                    "count": repo_views["count"]
-                },
-                "clones": {
-                    "uniques": repo_clones["uniques"],
-                    "count": repo_clones["count"]
-                }
-            }
-        ] + [
-            {
-                "views": {
-                    "uniques": views_breakdown["uniques"],
-                    "count": views_breakdown["count"]
-                },
-                "clones": {
-                    "uniques": clones_breakdown["uniques"],
-                    "count": clones_breakdown["count"]
-                }
-            } for views_breakdown, clones_breakdown in zip(
-                repo_views["breakdown"],
-                repo_clones["breakdown"]
-            )
-        ] for (repo_views, repo_clones) in zip(repos_views, repos_clones)
-    ]
-
-    def sort_key(r):
-        return [(c["clones"]["count"], c["views"]["count"]) for c in r[2:]]
-
-    def filter_func(r):
-        return bool(r[1]["views"]["count"] + r[1]["clones"]["count"])
-
-    def fmt_cell(c):
-        if not (c["views"]["count"] + c["clones"]["count"]):
-            return ""
-
-        line_str = "{uniques}/{count}"
-        lines = []
-
-        if show_views:
-            lines.append(line_str.format(**c["views"]))
-
-        if show_clones:
-            lines.append(line_str.format(**c["clones"]))
-
-        return "\n".join(lines)
-
-    data_rows = sorted(
-        data_rows,
-        key=sort_key
-    )
-
-    data_rows = filter(filter_func, data_rows)
-
-    data_rows = [[r[0]] + list(map(fmt_cell, r[1:])) for r in data_rows]
-
-    table_rows = labels + data_rows + labels
-    table = AsciiTable(table_rows, "Summary")
-    table.inner_row_border = True
-    table.justify_columns = {
-        i: "center" for i in range(1, len(dates) + 2)
-    }
-
-    return table.table
-
-
 @cli.command()
 @click.option(
     "--output-format",
@@ -359,3 +219,143 @@ def progressbar(*args, **kwargs):
     stderr_fobj = click.get_text_stream("stderr")
 
     return click.progressbar(*args, file=stderr_fobj, **kwargs)
+
+
+def filter_traffic_visible(repos):
+    for repo in repos:
+        if repo.permissions.push or repo.permissions.admin:
+            yield repo
+
+
+def date_days_range(start, end):
+    days = (end - start).days
+
+    for n in range(days + 1):
+        yield start + datetime.timedelta(days=n)
+
+
+def traffic_on_dates(traffic, dates):
+    traffic_by_date = {t.timestamp.date(): t for t in traffic}
+
+    for date in dates:
+        if date in traffic_by_date:
+            date_traffic = traffic_by_date[date]
+            yield {
+                "date": date,
+                "uniques": date_traffic.uniques,
+                "count": date_traffic.count
+            }
+        else:
+            yield {
+                "date": date,
+                "uniques": 0,
+                "count": 0
+            }
+
+
+def get_repos_views_traffic(repos, breakdown_dates):
+    for repo in repos:
+        traffic = repo.get_views_traffic()
+        breakdown = list(traffic_on_dates(traffic["views"], breakdown_dates))
+        yield {
+            "name": repo.name,
+            "uniques": traffic["uniques"],
+            "count": traffic["count"],
+            "breakdown": breakdown
+        }
+
+
+def get_repos_clones_traffic(repos, breakdown_dates):
+    for repo in repos:
+        traffic = repo.get_clones_traffic()
+        breakdown = list(traffic_on_dates(traffic["clones"], breakdown_dates))
+        yield {
+            "name": repo.name,
+            "uniques": traffic["uniques"],
+            "count": traffic["count"],
+            "breakdown": breakdown
+        }
+
+
+def get_repos_zero_traffic(repos, breakdown_dates):
+    for repo in repos:
+        yield {
+            "name": repo.name,
+            "uniques": 0,
+            "count": 0,
+            "breakdown": list(traffic_on_dates([], breakdown_dates))
+        }
+
+
+def build_summary_table(dates, repos_views, repos_clones, show_views,
+                        show_clones):
+    labels = [["Name", "All"] + [d.strftime("%m/%d\n%a") for d in dates]]
+
+    data_rows = [
+        [
+            repo_views["name"],
+            {
+                "views": {
+                    "uniques": repo_views["uniques"],
+                    "count": repo_views["count"]
+                },
+                "clones": {
+                    "uniques": repo_clones["uniques"],
+                    "count": repo_clones["count"]
+                }
+            }
+        ] + [
+            {
+                "views": {
+                    "uniques": views_breakdown["uniques"],
+                    "count": views_breakdown["count"]
+                },
+                "clones": {
+                    "uniques": clones_breakdown["uniques"],
+                    "count": clones_breakdown["count"]
+                }
+            } for views_breakdown, clones_breakdown in zip(
+                repo_views["breakdown"],
+                repo_clones["breakdown"]
+            )
+        ] for (repo_views, repo_clones) in zip(repos_views, repos_clones)
+    ]
+
+    def sort_key(r):
+        return [(c["clones"]["count"], c["views"]["count"]) for c in r[2:]]
+
+    def filter_func(r):
+        return bool(r[1]["views"]["count"] + r[1]["clones"]["count"])
+
+    def fmt_cell(c):
+        if not (c["views"]["count"] + c["clones"]["count"]):
+            return ""
+
+        line_str = "{uniques}/{count}"
+        lines = []
+
+        if show_views:
+            lines.append(line_str.format(**c["views"]))
+
+        if show_clones:
+            lines.append(line_str.format(**c["clones"]))
+
+        return "\n".join(lines)
+
+    data_rows = sorted(
+        data_rows,
+        key=sort_key
+    )
+
+    data_rows = filter(filter_func, data_rows)
+
+    data_rows = [[r[0]] + list(map(fmt_cell, r[1:])) for r in data_rows]
+
+    table_rows = labels + data_rows + labels
+    table = AsciiTable(table_rows, "Summary")
+    table.inner_row_border = True
+    table.justify_columns = {
+        i: "center" for i in range(1, len(dates) + 2)
+    }
+
+    return table.table
