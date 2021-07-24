@@ -2,8 +2,10 @@ import datetime
 import logging
 import json
 import concurrent.futures
+import time
 
 import click
+import github
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -52,16 +54,16 @@ def cli(ctx, token, user, password, ignore, include, output_format, order,
     ctx.obj["parallel_workers"] = parallel_workers
 
     if token:
-        github = Github(token)
+        g = Github(token)
     else:
-        github = Github(user, password)
+        g = Github(user, password)
 
-    repos = github.get_user().get_repos()
+    repos = get_repos(g) 
 
     ignore_repo_names = {x.strip() for x in ignore.split(",") if x.strip()}
     include_repo_names = {x.strip() for x in include.split(",") if x.strip()}
 
-    ctx.obj["github"] = github
+    ctx.obj["github"] = g
     ctx.obj["repos"] = list(
       x for x in filter_traffic_visible(repos)
       if x.name not in ignore_repo_names
@@ -149,13 +151,25 @@ def referrers(ctx):
         item_show_func=lambda r: r and r.name
     )
     with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-        futures = {executor.submit(repo.get_top_referrers): repo for repo in repos}
+        def get(repo):
+            try:
+                resp = repo.get_top_referrers()
+            except github.RateLimitExceededException as e:
+                retry_after = int(e.headers.get("retry-after", 0))
+                if retry_after:
+                    time.sleep(retry_after)
+                    resp = repo.get_top_referrers()
+                else:
+                    raise e
+
+            return resp, repo
+
+        futures = (executor.submit(get, repo) for repo in repos)
 
         referrers = []
         for f in concurrent.futures.as_completed(futures):
-            repo = futures[f]
+            top_refs, repo = f.result()
             prog.update(1, repo)
-            top_refs = f.result()
             for r in top_refs:
                 referrers.append(
                     {
@@ -206,13 +220,25 @@ def paths(ctx):
         item_show_func=lambda r: r and r.name
     )
     with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-        futures = {executor.submit(repo.get_top_paths): repo for repo in repos}
+        def get(repo):
+            try:
+                resp = repo.get_top_paths()
+            except github.RateLimitExceededException as e:
+                retry_after = int(e.headers.get("retry-after", 0))
+                if retry_after:
+                    time.sleep(retry_after)
+                    resp = repo.get_top_paths()
+                else:
+                    raise e
+
+            return resp, repo
+
+        futures = (executor.submit(get, repo) for repo in repos)
 
         paths = []
         for f in concurrent.futures.as_completed(futures):
-            repo = futures[f]
+            top_paths, repo  = f.result()
             prog.update(1, repo)
-            top_paths = f.result()
             for p in top_paths:
                 paths.append(
                     {
@@ -255,6 +281,18 @@ def progressbar(*args, **kwargs):
     return click.progressbar(*args, file=stderr_fobj, **kwargs)
 
 
+def get_repos(g):
+  try:
+      repos = list(g.get_user().get_repos())
+  except github.RateLimitExceededException as e:
+      retry_after = int(e.headers.get("retry-after", 0))
+      if retry_after:
+          time.sleep(retry_after)
+          repos = list(g.get_user().get_repos())
+      else:
+          raise e
+  return repos
+
 def filter_traffic_visible(repos):
     for repo in repos:
         if repo.permissions.push or repo.permissions.admin:
@@ -295,12 +333,24 @@ def get_repos_views_traffic(repos, breakdown_dates, parallel_workers):
         item_show_func=lambda r: r and r.name
     )
     with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-        futures = {executor.submit(repo.get_views_traffic): repo for repo in repos}
+        def get(repo):
+            try:
+                resp = repo.get_views_traffic()
+            except github.RateLimitExceededException as e:
+                retry_after = int(e.headers.get("retry-after", 0))
+                if retry_after:
+                    time.sleep(retry_after)
+                    resp = repo.get_views_traffic()
+                else:
+                    raise e
+
+            return resp, repo
+
+        futures = (executor.submit(get, repo) for repo in repos)
 
         for f in concurrent.futures.as_completed(futures):
-            repo = futures[f]
+            traffic, repo = f.result()
             prog.update(1, repo)
-            traffic = f.result()
             breakdown = list(traffic_on_dates(traffic["views"], breakdown_dates))
             yield {
                 "name": repo.name,
@@ -318,12 +368,24 @@ def get_repos_clones_traffic(repos, breakdown_dates, parallel_workers):
         item_show_func=lambda r: r and r.name
     )
     with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
-        futures = {executor.submit(repo.get_clones_traffic): repo for repo in repos}
+        def get(repo):
+            try:
+                resp = repo.get_clones_traffic()
+            except github.RateLimitExceededException as e:
+                retry_after = int(e.headers.get("retry-after", 0))
+                if retry_after:
+                    time.sleep(retry_after)
+                    resp = repo.get_clones_traffic()
+                else:
+                    raise e
+
+            return resp, repo
+
+        futures = (executor.submit(get, repo) for repo in repos)
 
         for f in concurrent.futures.as_completed(futures):
-            repo = futures[f]
+            traffic, repo = f.result()
             prog.update(1, repo)
-            traffic = f.result()
             breakdown = list(traffic_on_dates(traffic["clones"], breakdown_dates))
             yield {
                 "name": repo.name,
