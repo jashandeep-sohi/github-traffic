@@ -1,19 +1,23 @@
---------------
+|pypi-badge|
+
 github-traffic
---------------
+==============
 
 Summarize Github traffic stats across repos
 
 
-Requirements
-------------
-
-- Python 3
-
 Install
 -------
 
-To install the latest development version::
+Latest stable::
+
+  $ pip install --user github-traffic
+
+Latest pre-release::
+
+  $ pip install --user --pre github-traffic
+
+Git::
 
   $ pip install --user git+https://github.com/jashandeep-sohi/github-traffic.git
 
@@ -39,3 +43,7 @@ Top referrers::
 Top paths::
 
   $ github-traffic --token "$GITHUB_TOKEN" paths
+
+.. |pypi-badge| image:: https://img.shields.io/pypi/v/github-traffic
+    :alt: PyPI
+    :target: https://pypi.org/project/github-traffic/
