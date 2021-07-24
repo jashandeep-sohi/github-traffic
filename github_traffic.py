@@ -168,7 +168,7 @@ def referrers(ctx):
 
     referrers = sorted(
       referrers,
-      key=lambda x: (x["uniques"], x["count"]),
+      key=lambda x: (x["uniques"], x["count"], x["repo"]),
       reverse= True if order == "desc" else False
     )
 
@@ -226,7 +226,7 @@ def paths(ctx):
 
     paths = sorted(
       paths,
-      key=lambda x: (x["uniques"], x["count"]),
+      key=lambda x: (x["uniques"], x["count"], x["repo"]),
       reverse= True if order == "desc" else False
     )
 
