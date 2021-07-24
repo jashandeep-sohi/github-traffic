@@ -1,7 +1,11 @@
 import datetime
 import logging
-import click
 import json
+import concurrent.futures
+
+import click
+
+from concurrent.futures import ThreadPoolExecutor
 
 from github import Github
 from terminaltables import AsciiTable
@@ -33,12 +37,19 @@ logger = logging.getLogger(__name__)
     default="asc",
     type=click.Choice(["desc", "asc"])
 )
+@click.option(
+    "--parallel-workers",
+    default=10,
+    type=click.IntRange(1, 100)
+)
 @click.pass_context
-def cli(ctx, token, user, password, ignore, include, output_format, order):
+def cli(ctx, token, user, password, ignore, include, output_format, order,
+        parallel_workers):
     ctx.ensure_object(dict)
 
     ctx.obj["output_format"] = output_format
     ctx.obj["order"] = order
+    ctx.obj["parallel_workers"] = parallel_workers
 
     if token:
         github = Github(token)
@@ -76,6 +87,7 @@ def summary(ctx, metrics, days):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
     order = ctx.obj.get("order")
+    parallel_workers = ctx.obj.get("parallel_workers")
 
     metrics = set(metrics)
 
@@ -91,28 +103,18 @@ def summary(ctx, metrics, days):
     fake_traffic = list(get_repos_zero_traffic(repos, dates))
 
     if show_views:
-        p = progressbar(
-            repos,
-            show_eta=False,
-            label="Fetching views stats",
-            item_show_func=lambda r: r and r.name
-        )
-        with p:
-            repos_views = list(get_repos_views_traffic(p, dates))
+        repos_views = list(get_repos_views_traffic(repos, dates, parallel_workers))
+
     else:
         repos_views = fake_traffic
 
     if show_clones:
-        p = progressbar(
-            repos,
-            show_eta=False,
-            label="Fetching clones stats",
-            item_show_func=lambda r: r and r.name
-        )
-        with p:
-            repos_clones = list(get_repos_clones_traffic(p, dates))
+        repos_clones = list(get_repos_clones_traffic(repos, dates, parallel_workers))
     else:
         repos_clones = fake_traffic
+
+    repos_views = sorted(repos_views, key=lambda r: r["name"])
+    repos_clones = sorted(repos_clones, key=lambda r: r["name"])
 
     if output_format == "json":
         out = {
@@ -138,23 +140,32 @@ def referrers(ctx):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
     order = ctx.obj.get("order")
+    parallel_workers = ctx.obj.get("parallel_workers")
 
     prog = progressbar(
-        repos,
+        length=len(repos),
         show_eta=False,
         label="Fetching referrers stats",
         item_show_func=lambda r: r and r.name
     )
-    with prog:
-        referrers = [
-            {
-                "repo": repo.name,
-                "referrer": r.referrer,
-                "count": r.count,
-                "uniques": r.uniques
-            } for repo in prog for r in repo.get_top_referrers()
+    with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+        futures = {executor.submit(repo.get_top_referrers): repo for repo in repos}
 
-        ]
+        referrers = []
+        for f in concurrent.futures.as_completed(futures):
+            repo = futures[f]
+            prog.update(1, repo)
+            top_refs = f.result()
+            for r in top_refs:
+                referrers.append(
+                    {
+                        "repo": repo.name,
+                        "referrer": r.referrer,
+                        "count": r.count,
+                        "uniques": r.uniques
+                    }
+                )
+
     referrers = sorted(
       referrers,
       key=lambda x: (x["uniques"], x["count"]),
@@ -186,24 +197,33 @@ def paths(ctx):
     repos = ctx.obj.get("repos")
     output_format = ctx.obj.get("output_format")
     order = ctx.obj.get("order")
+    parallel_workers = ctx.obj.get("parallel_workers")
 
     prog = progressbar(
-        repos,
+        length=len(repos),
         show_eta=False,
         label="Fetching paths stats",
         item_show_func=lambda r: r and r.name
     )
-    with prog:
-        paths = [
-            {
-                "repo": repo.name,
-                "path": p.path,
-                "title": p.title,
-                "count": p.count,
-                "uniques": p.uniques
-            } for repo in prog for p in repo.get_top_paths()
+    with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+        futures = {executor.submit(repo.get_top_paths): repo for repo in repos}
 
-        ]
+        paths = []
+        for f in concurrent.futures.as_completed(futures):
+            repo = futures[f]
+            prog.update(1, repo)
+            top_paths = f.result()
+            for p in top_paths:
+                paths.append(
+                    {
+                        "repo": repo.name,
+                        "path": p.path,
+                        "title": p.title,
+                        "count": p.count,
+                        "uniques": p.uniques
+                    }
+                )
+
     paths = sorted(
       paths,
       key=lambda x: (x["uniques"], x["count"]),
@@ -267,28 +287,50 @@ def traffic_on_dates(traffic, dates):
             }
 
 
-def get_repos_views_traffic(repos, breakdown_dates):
-    for repo in repos:
-        traffic = repo.get_views_traffic()
-        breakdown = list(traffic_on_dates(traffic["views"], breakdown_dates))
-        yield {
-            "name": repo.name,
-            "uniques": traffic["uniques"],
-            "count": traffic["count"],
-            "breakdown": breakdown
-        }
+def get_repos_views_traffic(repos, breakdown_dates, parallel_workers):
+    prog = progressbar(
+        length=len(repos),
+        show_eta=False,
+        label="Fetching views stats",
+        item_show_func=lambda r: r and r.name
+    )
+    with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+        futures = {executor.submit(repo.get_views_traffic): repo for repo in repos}
+
+        for f in concurrent.futures.as_completed(futures):
+            repo = futures[f]
+            prog.update(1, repo)
+            traffic = f.result()
+            breakdown = list(traffic_on_dates(traffic["views"], breakdown_dates))
+            yield {
+                "name": repo.name,
+                "uniques": traffic["uniques"],
+                "count": traffic["count"],
+                "breakdown": breakdown
+            }
 
 
-def get_repos_clones_traffic(repos, breakdown_dates):
-    for repo in repos:
-        traffic = repo.get_clones_traffic()
-        breakdown = list(traffic_on_dates(traffic["clones"], breakdown_dates))
-        yield {
-            "name": repo.name,
-            "uniques": traffic["uniques"],
-            "count": traffic["count"],
-            "breakdown": breakdown
-        }
+def get_repos_clones_traffic(repos, breakdown_dates, parallel_workers):
+    prog = progressbar(
+        length=len(repos),
+        show_eta=False,
+        label="Fetching clones stats",
+        item_show_func=lambda r: r and r.name
+    )
+    with prog, ThreadPoolExecutor(max_workers=parallel_workers) as executor:
+        futures = {executor.submit(repo.get_clones_traffic): repo for repo in repos}
+
+        for f in concurrent.futures.as_completed(futures):
+            repo = futures[f]
+            prog.update(1, repo)
+            traffic = f.result()
+            breakdown = list(traffic_on_dates(traffic["clones"], breakdown_dates))
+            yield {
+                "name": repo.name,
+                "uniques": traffic["uniques"],
+                "count": traffic["count"],
+                "breakdown": breakdown
+            }
 
 
 def get_repos_zero_traffic(repos, breakdown_dates):
