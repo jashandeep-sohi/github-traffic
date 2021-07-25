@@ -40,25 +40,25 @@ logger = logging.getLogger(__name__)
     type=click.Choice(["desc", "asc"])
 )
 @click.option(
-    "--parallel-workers",
+    "--parallel",
     default=10,
     type=click.IntRange(1, 100)
 )
 @click.pass_context
 def cli(ctx, token, user, password, ignore, include, output_format, order,
-        parallel_workers):
+        parallel):
     ctx.ensure_object(dict)
 
     ctx.obj["output_format"] = output_format
     ctx.obj["order"] = order
-    ctx.obj["parallel_workers"] = parallel_workers
+    ctx.obj["parallel_workers"] = parallel
 
     if token:
         g = Github(token)
     else:
         g = Github(user, password)
 
-    repos = get_repos(g) 
+    repos = get_repos(g)
 
     ignore_repo_names = {x.strip() for x in ignore.split(",") if x.strip()}
     include_repo_names = {x.strip() for x in include.split(",") if x.strip()}
