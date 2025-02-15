@@ -1,24 +1,28 @@
-[tool.poetry]
+[project]
 name = "github-traffic"
 version = "0.2.0"
 description = "Summarize Github traffic stats across repositories."
-authors = ["Jashandeep Sohi <jashandeep.s.sohi@gmail.com>"]
+authors = [
+  { name = "Jashandeep Sohi", email = "jashandeep.s.sohi@gmail.com" }
+]
 license = "GPLv3"
 readme = "README.rst"
+dynamic = ["requires-python", "dependencies"]
+
+
+[project.urls]
 repository = "https://github.com/jashandeep-sohi/github-traffic"
 
 [tool.poetry.dependencies]
 python = "^3.8"
-PyGithub = ">=1.43.8"
+PyGithub = ">=1.43.8,<=2.5.0"
 click = ">=7"
 terminaltables = "^3.1.0"
 click-aliases = "^1.0.1"
-
-[tool.poetry.dev-dependencies]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
-[tool.poetry.scripts]
+[project.scripts]
 github-traffic = "github_traffic:cli"
