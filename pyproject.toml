@@ -1,6 +1,6 @@
 [project]
 name = "github-traffic"
-version = "0.2.0"
+version = "0.2.1"
 description = "Summarize Github traffic stats across repositories."
 authors = [
   { name = "Jashandeep Sohi", email = "jashandeep.s.sohi@gmail.com" }
