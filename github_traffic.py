@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
   default="",
   help="comma seperated list of repos to exclusively include"
 )
+@click.option("--include-owners",
+  default="",
+  help="comma seperated list of owners to exclusively include"
+)
 @click.option(
     "--output-format",
     default="table",
@@ -45,7 +49,7 @@ logger = logging.getLogger(__name__)
     type=click.IntRange(1, 100)
 )
 @click.pass_context
-def cli(ctx, token, user, password, ignore, include, output_format, order,
+def cli(ctx, token, user, password, ignore, include, include_owners, output_format, order,
         parallel):
     ctx.ensure_object(dict)
 
@@ -62,6 +66,7 @@ def cli(ctx, token, user, password, ignore, include, output_format, order,
 
     ignore_repo_names = {x.strip() for x in ignore.split(",") if x.strip()}
     include_repo_names = {x.strip() for x in include.split(",") if x.strip()}
+    include_owner_names = {x.strip() for x in include_owners.split(",") if x.strip()}
 
     ctx.obj["github"] = g
     ctx.obj["repos"] = list(
@@ -73,6 +78,12 @@ def cli(ctx, token, user, password, ignore, include, output_format, order,
       ctx.obj["repos"] = list(
         x for x in ctx.obj["repos"]
         if x.name in include_repo_names
+      )
+
+    if include_owner_names:
+      ctx.obj["repos"] = list(
+        x for x in ctx.obj["repos"]
+        if x.owner.login in include_owner_names
       )
 
 
